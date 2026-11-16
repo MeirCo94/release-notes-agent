@@ -1,0 +1,12 @@
+{
+  "name": "Acme Projects",
+  "summary": "Replace this with a short description of your product: who it is for, what problem it solves, and its main value propositions. This text helps the model use your product's own language when it titles and groups release notes.",
+  "areas": [
+    { "name": "Projects and tasks", "description": "Creating, organising and tracking work." },
+    { "name": "Collaboration", "description": "Comments, mentions, sharing and permissions." },
+    { "name": "Reporting", "description": "Dashboards, exports and analytics." },
+    { "name": "Integrations", "description": "Connections to other tools and the public API." },
+    { "name": "Accounts and billing", "description": "Sign-in, teams, plans and invoices." }
+  ],
+  "sources": []
+}

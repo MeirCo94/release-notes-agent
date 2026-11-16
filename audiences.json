@@ -1,0 +1,26 @@
+[
+  {
+    "id": "customers",
+    "label": "Customers",
+    "description": "People who use the product. Plain language, short, focused on what changed in what they can do. No internal jargon, ticket numbers or implementation detail.",
+    "public": true
+  },
+  {
+    "id": "customer-support",
+    "label": "Customer Support",
+    "description": "Support agents who will get questions and tickets about this. What changed, how to recognise it, what customers may report, known limitations or edge cases, and how to explain it.",
+    "public": false
+  },
+  {
+    "id": "sales",
+    "label": "Sales",
+    "description": "Sales reps talking to prospects and customers. What is new or better in terms of value, which kinds of customer it matters to, and any competitive or pricing relevance, as long as the sources state it.",
+    "public": false
+  },
+  {
+    "id": "customer-success",
+    "label": "Customer Success",
+    "description": "Success managers who own adoption and renewals. Which customers or workflows are affected, what to tell them proactively, and any change that could cause confusion or needs onboarding.",
+    "public": false
+  }
+]
