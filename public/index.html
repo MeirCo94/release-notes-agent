@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Release notes review</title>
+<style>
+  :root { --accent:#4f3bd6; --fg:#1d1b26; --muted:#6b6878; --line:#e7e5ee; --bg:#fafafc; --card:#fff; --warn:#a14b00; --warn-bg:#fff3e6; --ok:#13734b; --ok-bg:#e8f6ef; }
+  @media (prefers-color-scheme: dark) { :root { --accent:#9d90ff; --fg:#f1f0f5; --muted:#a9a6b5; --line:#33313d; --bg:#141318; --card:#1c1b22; --warn:#ffb26b; --warn-bg:#3a2a18; --ok:#6fd3a5; --ok-bg:#16312a; } }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.5 Inter, system-ui, -apple-system, "Segoe UI", sans-serif; color:var(--fg); background:var(--bg); }
+  main { max-width: 960px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .bar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:20px; }
+  button, input { font: inherit; }
+  button { border:1px solid var(--line); background:var(--card); color:var(--fg); border-radius:8px; padding:7px 12px; cursor:pointer; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button:disabled { opacity:.5; cursor:default; }
+  input { border:1px solid var(--line); background:var(--card); color:var(--fg); border-radius:8px; padding:7px 10px; min-width:0; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; margin-bottom:16px; overflow:hidden; }
+  .card > summary { list-style:none; padding:14px 16px; cursor:pointer; display:flex; flex-wrap:wrap; gap:8px 12px; align-items:center; }
+  .card > summary::-webkit-details-marker { display:none; }
+  .title { font-weight:600; font-size:15px; flex:1 1 240px; }
+  .pill { font-size:12px; border-radius:999px; padding:2px 8px; background:var(--bg); border:1px solid var(--line); color:var(--muted); white-space:nowrap; }
+  .pill.warn { color:var(--warn); background:var(--warn-bg); border-color:transparent; }
+  .pill.ok { color:var(--ok); background:var(--ok-bg); border-color:transparent; }
+  .body { padding: 0 16px 16px; border-top:1px solid var(--line); }
+  .meta { color:var(--muted); font-size:13px; margin:12px 0; }
+  .meta a { color:var(--accent); }
+  h3 { font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:18px 0 8px; }
+  .item { border:1px solid var(--line); border-radius:8px; padding:10px 12px; margin-bottom:8px; }
+  .item.review { border-color: var(--warn); }
+  .item h4 { margin:0; font-size:14px; }
+  .item .area { color:var(--muted); font-size:12px; }
+  .item p { margin:6px 0 0; }
+  .reason { color:var(--warn); font-size:13px; margin-top:6px; }
+  .src { font-size:12px; margin-top:6px; color:var(--muted); }
+  .src a { color:var(--accent); }
+  .actions { display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; }
+  .empty { color:var(--muted); padding:24px 0; }
+  .err { color:var(--warn); white-space:pre-wrap; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Release notes review</h1>
+  <p class="sub" id="status">Loading…</p>
+  <div class="bar">
+    <input id="token" type="password" placeholder="Admin token (if set)" aria-label="Admin token">
+    <input id="since" type="date" aria-label="Read messages since">
+    <button class="primary" id="run">Check for new deploys</button>
+    <button id="sync">Sync approvals from destination</button>
+  </div>
+  <div id="msg" class="err"></div>
+  <div id="drafts"></div>
+</main>
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+const AUD = { instructor: "For instructors", student: "For students", internal: "For support and success" };
+try { $("#token").value = localStorage.getItem("rna-token") || ""; } catch {}
+$("#token").addEventListener("change", () => { try { localStorage.setItem("rna-token", $("#token").value); } catch {} load(); });
+
+async function api(path, opts = {}) {
+  const t = $("#token").value;
+  const res = await fetch(path, { ...opts, headers: { "Content-Type": "application/json", ...(t ? { Authorization: "Bearer " + t } : {}) } });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || res.statusText);
+  return body;
+}
+
+function renderDraft(d) {
+  const flagged = d.items.filter((i) => i.status === "needs_review").length;
+  const ev = new Map(d.evidence.map((e) => [e.id, e]));
+  const slack = d.batch.messages.map((m, i) => m.permalink ? `<a href="${esc(m.permalink)}" target="_blank" rel="noopener">message ${i + 1}</a>` : `message ${i + 1}`).join(", ");
+  const jira = [...new Set(d.batch.changes.flatMap((c) => c.jiraKeys))];
+  const statusPill = d.status === "draft" ? `<span class="pill">Draft</span>` : `<span class="pill ok">${d.status === "published" ? "Published" : "Approved"}</span>`;
+  const sections = Object.keys(AUD).map((a) => {
+    const items = d.items.filter((i) => i.audience === a);
+    if (!items.length) return "";
+    return `<h3>${AUD[a]}</h3>` + items.map((i) => `
+      <div class="item ${i.status === "needs_review" ? "review" : ""}">
+        <h4>${esc(i.title)}</h4>
+        <div class="area">${esc(i.area)} · ${esc(i.kind)}</div>
+        <p>${esc(i.body)}</p>
+        ${i.status === "needs_review" ? `<div class="reason">Needs review: ${esc(i.reviewReason)}</div>` : ""}
+        ${i.citations.length ? `<div class="src">Sources: ${i.citations.map((c) => ev.get(c)).filter(Boolean).map((e) => `<a href="${esc(e.url)}" target="_blank" rel="noopener">${esc(e.title)}</a>`).join(", ")}</div>` : ""}
+      </div>`).join("");
+  }).join("");
+  return `<details class="card">
+    <summary>
+      <span class="title">${esc(d.title)}</span>
+      ${statusPill}
+      <span class="pill">${d.items.length} entries</span>
+      ${flagged ? `<span class="pill warn">${flagged} need review</span>` : `<span class="pill ok">All sourced</span>`}
+    </summary>
+    <div class="body">
+      <div class="meta">
+        Release date ${esc(d.batch.date)} · Version ${esc(d.batch.version || "not stated")} · Slack: ${slack}${jira.length ? ` · Jira: ${jira.map(esc).join(", ")}` : ""}
+        ${d.destination ? `<br>Draft: <a href="${esc(d.destination.url)}" target="_blank" rel="noopener">open in ${esc(d.destination.name)}</a>` : "<br>Not published to the destination yet."}
+      </div>
+      ${sections}
+      <div class="actions">
+        ${d.status === "draft" ? `<button class="primary" data-approve="${esc(d.id)}">Approve for in-product feed</button>` : ""}
+      </div>
+      ${d.status === "draft" && flagged ? `<p class="sub">Approving here publishes only the sourced entries. Entries that need review stay hidden until they're fixed in the destination and synced.</p>` : ""}
+    </div>
+  </details>`;
+}
+
+async function load() {
+  $("#msg").textContent = "";
+  try {
+    const data = await api("/api/drafts");
+    $("#status").textContent = `Reading ${data.source}, writing to ${data.destination}, checking ${data.providers.join(", ") || "no linked sources"}. ` +
+      (data.lastRunAt ? `Last run ${new Date(data.lastRunAt).toLocaleString()}.` : "Not run yet.");
+    $("#drafts").innerHTML = data.drafts.length ? data.drafts.map(renderDraft).join("") : `<div class="empty">No drafts yet. Check for new deploys to create one.</div>`;
+  } catch (e) {
+    $("#status").textContent = "";
+    $("#msg").textContent = e.message;
+  }
+}
+
+async function act(btn, fn) {
+  btn.disabled = true; $("#msg").textContent = "";
+  try { const r = await fn(); if (r?.errors?.length) $("#msg").textContent = r.errors.join("\n"); await load(); }
+  catch (e) { $("#msg").textContent = e.message; }
+  finally { btn.disabled = false; }
+}
+$("#run").addEventListener("click", (e) => act(e.target, () => api("/api/run", { method: "POST", body: JSON.stringify({ since: $("#since").value || undefined }) })));
+$("#sync").addEventListener("click", (e) => act(e.target, () => api("/api/sync", { method: "POST" })));
+$("#drafts").addEventListener("click", (e) => {
+  const id = e.target.dataset?.approve;
+  if (id) act(e.target, () => api(`/api/drafts/${encodeURIComponent(id)}/approve`, { method: "POST" }));
+});
+load();
+</script>
+</body>
+</html>

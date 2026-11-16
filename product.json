@@ -1,0 +1,14 @@
+{
+  "name": "Kritik",
+  "summary": "Kritik is a peer assessment and authorship platform for higher education. Instructors create activities where students submit work, evaluate each other's work against a rubric, and give feedback on the evaluations they receive. Authorship tracking shows how a student's writing developed, including their use of AI, so instructors can assess process as well as product.",
+  "areas": [
+    { "name": "Activity creation", "description": "Instructors set up activities: type, rubric, schedule, groups, authorship settings, AI-assisted creation." },
+    { "name": "Submitting work", "description": "Students write or upload their creation, use the AI assistant, and submit before the deadline." },
+    { "name": "Peer evaluation", "description": "Students evaluate assigned peers' work with the rubric and written comments." },
+    { "name": "Feedback", "description": "Students rate the evaluations they received; instructors see flagged evaluations and disputes." },
+    { "name": "Authorship and AI use", "description": "Writing replay, AI usage reports and authorship scores instructors use to understand how work was produced." },
+    { "name": "Grading and scores", "description": "Creation, evaluation and feedback scores, grade calculation, exports and LMS grade sync." },
+    { "name": "Course management", "description": "Rosters, LMS integrations, notifications, accounts and settings." }
+  ],
+  "sources": []
+}

@@ -1,0 +1,34 @@
+[
+  {
+    "id": "sample:1",
+    "channel": "deploys",
+    "author": "deploy-bot",
+    "postedAt": "2026-11-10T15:02:00Z",
+    "text": "Release v3.42.0 is live in production 🚀\n• New: instructors can import a rubric from another course when creating an activity (KRT-1201, https://github.com/example-org/example-app/pull/481)\n• Fix: evaluation timer no longer resets when a student switches tabs (KRT-1188)\n• Bumped node to 22 on the workers",
+    "permalink": "https://example.slack.com/archives/C000DEPLOYS/p1762786920000100"
+  },
+  {
+    "id": "sample:2",
+    "channel": "deploys",
+    "author": "maria",
+    "postedAt": "2026-11-10T15:20:00Z",
+    "text": "anyone seeing slow builds on CI today?",
+    "permalink": "https://example.slack.com/archives/C000DEPLOYS/p1762788000000200"
+  },
+  {
+    "id": "sample:3",
+    "channel": "deploys",
+    "author": "deploy-bot",
+    "postedAt": "2026-11-12T19:45:00Z",
+    "text": "Hotfix deployed: students on Safari can submit again after the editor update. KRT-1215",
+    "permalink": "https://example.slack.com/archives/C000DEPLOYS/p1762976700000300"
+  },
+  {
+    "id": "sample:4",
+    "channel": "deploys",
+    "author": "sam",
+    "postedAt": "2026-11-12T21:10:00Z",
+    "text": "Shipped the new AI usage summary on the authorship report. No ticket yet, will add one.",
+    "permalink": "https://example.slack.com/archives/C000DEPLOYS/p1762981800000400"
+  }
+]
