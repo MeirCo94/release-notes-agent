@@ -51,12 +51,29 @@ Each release becomes a page with Release date, Version, links to the Slack messa
 
 ## In-product release notes
 
+One file, no dependencies, works in any page or framework. Use the pinned URL in production.
+
 ```html
-<script src="https://YOUR-HOST/widget.js" data-audience="instructor" defer></script>
-<!-- students: data-audience="student" -->
+<script src="https://YOUR-HOST/widget.v1.js" defer></script>
+<release-notes-widget audience="student" api="https://YOUR-HOST"></release-notes-widget>
 ```
 
-Or call `GET /api/whats-new?audience=student|instructor` and render it yourself. Only approved, sourced entries are returned. Set `WIDGET_ALLOWED_ORIGIN` to your product's origin in production.
+Or let the script place a floating button for you: `<script src=".../widget.v1.js" data-audience="instructor" defer></script>` (add `data-target="#slot"` to mount it in your own markup instead).
+
+| Attribute | Meaning |
+| --- | --- |
+| `audience` | `instructor` or `student` |
+| `api` | Origin of this app (default: the script's origin) |
+| `feed` | Full URL of a static feed JSON. Skips the app entirely |
+| `heading`, `theme`, `floating` | Heading text, `auto`/`light`/`dark`, fixed bottom-right button |
+
+**Theming:** set `--rn-font`, `--rn-accent`, `--rn-fg`, `--rn-muted`, `--rn-bg`, `--rn-tint`, `--rn-line`, `--rn-radius` on the element or any ancestor. **Text:** set `el.strings = { heading, loading, empty, error, newUpdates, close, kinds }` to translate or reword. **Events:** `rn-open`, `rn-close`, `rn-loaded`, `rn-error` (bubble, composed).
+
+**Accessibility:** the toggle is a real button with `aria-expanded`/`aria-controls`; focus moves to the heading on open and returns to the button on Escape or Close; clicking elsewhere closes without stealing focus; unread state is in the button's accessible name, not only a dot; loading, empty and error states are announced; releases are lists with `time` elements; the close target is 44px; focus rings are visible; forced-colors mode is handled; dark mode follows the OS or `theme`. Checked with axe (WCAG 2.0/2.1 A and AA) in Chromium in light and dark, including contrast.
+
+**Running without the server (static feed):** set `FEED_DIR=public-feed`. Whenever a run, sync or approval happens the app rewrites `whats-new-instructor.json` and `whats-new-student.json` there. Upload the folder to any static host or CDN and point the widget at it with `feed="https://cdn.example.com/whats-new-student.json"`. The widget then works with the app switched off. Serve the JSON with `Access-Control-Allow-Origin` for your product's origin.
+
+Or call `GET /api/whats-new?audience=student|instructor` and render it yourself. Only approved, sourced entries are ever returned. Set `WIDGET_ALLOWED_ORIGIN` to your product's origin in production.
 
 ## Deploying
 
@@ -67,3 +84,4 @@ It is a single Node 22 process with a JSON-file store. Set `ADMIN_TOKEN` so the 
 - Confluence, Notion and Google Docs as *evidence* providers (they need per-source credentials)
 - Slack threads (replies under an announcement are not read)
 - Live tests against real Slack, Notion, Jira and Google accounts: adapters are covered with fakes only
+- Screen reader testing with real assistive tech (VoiceOver, NVDA); only automated checks and a keyboard run so far

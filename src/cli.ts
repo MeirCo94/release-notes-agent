@@ -1,5 +1,5 @@
 import { parseArgs } from "node:util";
-import { runDigest, syncReviews } from "./app.js";
+import { runDigest, syncReviews, writeFeeds } from "./app.js";
 import { loadConfig } from "./config.js";
 import { ClaudeLlm } from "./llm.js";
 import { NotionPublisher } from "./adapters/publishers/notion.js";
@@ -24,6 +24,7 @@ if (values["setup-notion"]) {
   const store = new JsonStore(cfg.storePath);
   if (values.sync) {
     console.log(`Updated ${await syncReviews(cfg, store)} drafts from ${cfg.publisher.name}`);
+    if (cfg.feedDir) console.log("Wrote", await writeFeeds(store, cfg.feedDir));
   } else {
     const r = await runDigest(cfg, new ClaudeLlm(), store, {
       since: values.since ? new Date(values.since) : undefined,

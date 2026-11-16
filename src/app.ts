@@ -1,3 +1,5 @@
+import { mkdir, rename, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import type { AppConfig } from "./config.js";
 import type { Llm } from "./llm.js";
 import { buildDraft } from "./pipeline/compose.js";
@@ -105,4 +107,21 @@ export async function whatsNew(store: JsonStore, audience: Audience, limit = 10)
     }))
     .filter((e) => e.items.length > 0)
     .slice(0, limit);
+}
+
+/**
+ * Writes the in-product feed as static files (whats-new-instructor.json, whats-new-student.json) so the
+ * widget can read them from a CDN or any static host with no server running. Same shape as /api/whats-new.
+ */
+export async function writeFeeds(store: JsonStore, dir: string, limit = 10): Promise<string[]> {
+  await mkdir(dir, { recursive: true });
+  const written: string[] = [];
+  for (const audience of ["instructor", "student"] as const) {
+    const file = join(dir, `whats-new-${audience}.json`);
+    const tmp = `${file}.tmp`;
+    await writeFile(tmp, JSON.stringify({ audience, releases: await whatsNew(store, audience, limit) }, null, 2));
+    await rename(tmp, file);
+    written.push(file);
+  }
+  return written;
 }

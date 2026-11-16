@@ -98,3 +98,19 @@ describe("groupIntoBatches", () => {
     expect(b[0].date).toBe("2026-11-10");
   });
 });
+
+describe("static feed", () => {
+  it("writes the same approved, sourced feed as files a CDN can serve", async () => {
+    const { writeFeeds } = await import("../src/app.js");
+    const { readFile } = await import("node:fs/promises");
+    const { cfg, store } = await setup();
+    await runDigest(cfg, llm, store, range);
+    for (const d of await store.drafts()) await approveDraft(store, d.id);
+    const dir = join(await mkdtemp(join(tmpdir(), "feed-")), "feed");
+    const files = await writeFeeds(store, dir);
+    expect(files.map((f) => f.split("/").pop())).toEqual(["whats-new-instructor.json", "whats-new-student.json"]);
+    const student = JSON.parse(await readFile(join(dir, "whats-new-student.json"), "utf8"));
+    expect(student).toEqual({ audience: "student", releases: await whatsNew(store, "student") });
+    expect(JSON.stringify(student)).not.toContain("From the deploy announcement");
+  });
+});

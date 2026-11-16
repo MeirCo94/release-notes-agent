@@ -1,7 +1,7 @@
 import express from "express";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { approveDraft, runDigest, syncReviews, whatsNew } from "./app.js";
+import { approveDraft, runDigest, syncReviews, whatsNew, writeFeeds } from "./app.js";
 import { loadConfig } from "./config.js";
 import { ClaudeLlm } from "./llm.js";
 import { JsonStore } from "./store.js";
@@ -29,7 +29,9 @@ app.post("/api/run", requireAdmin, async (req, res) => {
   try {
     const since = req.body?.since ? new Date(req.body.since) : undefined;
     const until = req.body?.until ? new Date(req.body.until) : undefined;
-    res.json(await runDigest(cfg, llm, store, { since, until }));
+    const result = await runDigest(cfg, llm, store, { since, until });
+    if (cfg.feedDir) await writeFeeds(store, cfg.feedDir);
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   } finally {
@@ -39,7 +41,9 @@ app.post("/api/run", requireAdmin, async (req, res) => {
 
 app.post("/api/sync", requireAdmin, async (_req, res) => {
   try {
-    res.json({ updated: await syncReviews(cfg, store) });
+    const updated = await syncReviews(cfg, store);
+    if (cfg.feedDir) await writeFeeds(store, cfg.feedDir);
+    res.json({ updated });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }
@@ -58,6 +62,7 @@ app.get("/api/drafts", requireAdmin, async (_req, res) => {
 app.post("/api/drafts/:id/approve", requireAdmin, async (req, res) => {
   const d = await approveDraft(store, String(req.params.id));
   if (!d) return void res.status(404).json({ error: "Draft not found" });
+  if (cfg.feedDir) await writeFeeds(store, cfg.feedDir);
   res.json(d);
 });
 
@@ -70,7 +75,13 @@ app.get("/api/whats-new", async (req, res) => {
   res.json({ audience, releases: await whatsNew(store, audience, Number(req.query.limit ?? 10)) });
 });
 
-app.use(express.static(publicDir));
+// Pinned URL for production embeds. Breaking widget changes will ship as widget.v2.js, never over v1.
+app.get("/widget.v1.js", (_req, res) => {
+  res.set("Cache-Control", "public, max-age=86400");
+  res.set("Access-Control-Allow-Origin", "*");
+  res.sendFile(join(publicDir, "widget.js"));
+});
+app.use(express.static(publicDir, { setHeaders: (res) => res.set("Access-Control-Allow-Origin", "*") }));
 
 const port = Number(process.env.PORT ?? 3000);
 app.listen(port, () => console.log(`Release notes agent on http://localhost:${port}`));
@@ -84,6 +95,7 @@ if (every > 0) {
     try {
       const r = await runDigest(cfg, llm, store);
       await syncReviews(cfg, store);
+      if (cfg.feedDir) await writeFeeds(store, cfg.feedDir);
       console.log(`Scheduled run: ${r.announcements} announcements, ${r.drafts.length} drafts`, r.errors);
     } catch (err) {
       console.error("Scheduled run failed", err);

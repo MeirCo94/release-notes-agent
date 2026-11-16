@@ -30,6 +30,8 @@ export interface AppConfig {
   audiences: Audience[];
   lookbackDays: number;
   storePath: string;
+  /** When set, approved notes are also written here as static JSON for a CDN. */
+  feedDir?: string;
 }
 
 export function loadConfig(): AppConfig {
@@ -67,5 +69,6 @@ export function loadConfig(): AppConfig {
     audiences: list("AUDIENCES", "instructor,student,internal") as Audience[],
     lookbackDays: Number(env("LOOKBACK_DAYS", "7")),
     storePath: env("STORE_PATH", "data/store.json")!,
+    feedDir: env("FEED_DIR"),
   };
 }
