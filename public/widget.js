@@ -158,6 +158,7 @@
       this._status.textContent = this._loaded ? "" : s.loading;
       if (this._loaded && !this._data) this._status.textContent = s.error;
       if (wasOpen) this._listen();
+      if (this._data) this._renderList(); // a heading or text change must not drop the notes already loaded
     }
 
     _emit(name, detail) {

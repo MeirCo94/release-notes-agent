@@ -129,6 +129,14 @@ describe("release-notes-widget", () => {
     expect(a.shadowRoot.querySelector(".close").getAttribute("aria-label")).toBe("Fermer");
   });
 
+  it("keeps the loaded notes when the heading changes", async () => {
+    mockFetch(feed);
+    const { el, root } = await mount();
+    el.setAttribute("heading", "Product updates");
+    expect(root.querySelector("h2")!.textContent).toBe("Product updates");
+    expect(root.querySelectorAll("ul.items > li")).toHaveLength(3);
+  });
+
   it("has no axe violations closed or open (contrast is checked in a real browser)", async () => {
     mockFetch(feed);
     const { root } = await mount();
