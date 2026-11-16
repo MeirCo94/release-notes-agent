@@ -4,14 +4,14 @@
  * Custom element (works in plain HTML, React/Vue, modules, injected markup, several per page):
  *
  *   <script src="https://HOST/widget.v1.js" defer></script>
- *   <release-notes-widget audience="student" api="https://HOST"></release-notes-widget>
+ *   <release-notes-widget audience="customers" api="https://HOST"></release-notes-widget>
  *
  * Or let the script tag place it for you (floating button, or inside data-target):
  *
- *   <script src="https://HOST/widget.v1.js" data-audience="instructor" defer></script>
+ *   <script src="https://HOST/widget.v1.js" data-audience="customers" defer></script>
  *
  * Attributes
- *   audience   instructor | student                       (required)
+ *   audience   id of a public audience from your audiences config, e.g. "customers" (required unless feed is set)
  *   api        origin of the release-notes app            (default: this script's origin)
  *   feed       full URL of a static feed JSON; skips the app entirely (see FEED_DIR in the README)
  *   heading    panel heading                              (default "What's new")
@@ -119,12 +119,14 @@
     }
 
     _heading() { return this.getAttribute("heading") || this._strings.heading; }
-    _audience() { return this.getAttribute("audience") === "instructor" ? "instructor" : "student"; }
-    _seenKey() { return "rn-last-seen-" + this._audience(); }
+    _audience() { return this.getAttribute("audience") || ""; }
+    // Unread memory is per audience, or per feed when only a feed URL is given.
+    _seenKey() { return "rn-last-seen-" + (this._audience() || this.getAttribute("feed") || ""); }
 
     _url() {
       var feed = this.getAttribute("feed");
       if (feed) return feed;
+      if (!this._audience()) return null;
       var api = (this.getAttribute("api") || SCRIPT_ORIGIN || "").replace(/\/$/, "");
       return api + "/api/whats-new?audience=" + encodeURIComponent(this._audience());
     }
@@ -218,6 +220,15 @@
 
     _load() {
       var url = this._url();
+      if (!url) {
+        // No audience and no feed: say so instead of guessing which notes to show.
+        this._data = null;
+        this._loaded = true;
+        this._status.textContent = this._strings.error;
+        if (window.console) console.warn("<release-notes-widget> needs an audience or a feed attribute.");
+        this._emit("rn-error", { message: "missing audience or feed" });
+        return;
+      }
       this._status.textContent = this._strings.loading;
       this._status.hidden = false;
       this._list.hidden = true;
@@ -265,7 +276,7 @@
 
   window.customElements.define("release-notes-widget", ReleaseNotesWidget);
 
-  // Script-tag mode: <script src="widget.js" data-audience="student" data-target="#slot">
+  // Script-tag mode: <script src="widget.js" data-audience="customers" data-target="#slot">
   var script = document.currentScript;
   if (script && script.getAttribute("data-audience")) {
     var place = function () {

@@ -10,7 +10,8 @@ import { NotionPublisher } from "./adapters/publishers/notion.js";
 import { GoogleDocsPublisher } from "./adapters/publishers/google-docs.js";
 import { MarkdownPublisher } from "./adapters/publishers/markdown.js";
 import type { GroupingMode } from "./pipeline/detect.js";
-import type { Audience } from "./types.js";
+import { loadAudiences } from "./audiences.js";
+import type { AudienceDef } from "./types.js";
 
 const env = (k: string, fallback?: string) => process.env[k] ?? fallback;
 const required = (k: string) => {
@@ -27,14 +28,14 @@ export interface AppConfig {
   product: ProductContextSource;
   grouping: GroupingMode;
   timeZone: string;
-  audiences: Audience[];
+  audiences: AudienceDef[];
   lookbackDays: number;
   storePath: string;
   /** When set, approved notes are also written here as static JSON for a CDN. */
   feedDir?: string;
 }
 
-export function loadConfig(): AppConfig {
+export async function loadConfig(): Promise<AppConfig> {
   const sourceName = env("CHAT_SOURCE", "file");
   const source: ChatSource =
     sourceName === "slack"
@@ -66,7 +67,7 @@ export function loadConfig(): AppConfig {
     product: new WebsiteProductContext({ configPath: env("PRODUCT_CONFIG", "product.json")!, urls: list("PRODUCT_SITE_URLS") }),
     grouping: env("GROUP_BY", "release") === "day" ? "day" : "release",
     timeZone: env("TIME_ZONE", "UTC")!,
-    audiences: list("AUDIENCES", "instructor,student,internal") as Audience[],
+    audiences: await loadAudiences(env("AUDIENCES_CONFIG", "audiences.json")!),
     lookbackDays: Number(env("LOOKBACK_DAYS", "7")),
     storePath: env("STORE_PATH", "data/store.json")!,
     feedDir: env("FEED_DIR"),

@@ -58,7 +58,6 @@
 <script>
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
-const AUD = { instructor: "For instructors", student: "For students", internal: "For support and success" };
 try { $("#token").value = localStorage.getItem("rna-token") || ""; } catch {}
 $("#token").addEventListener("change", () => { try { localStorage.setItem("rna-token", $("#token").value); } catch {} load(); });
 
@@ -76,10 +75,10 @@ function renderDraft(d) {
   const slack = d.batch.messages.map((m, i) => m.permalink ? `<a href="${esc(m.permalink)}" target="_blank" rel="noopener">message ${i + 1}</a>` : `message ${i + 1}`).join(", ");
   const jira = [...new Set(d.batch.changes.flatMap((c) => c.jiraKeys))];
   const statusPill = d.status === "draft" ? `<span class="pill">Draft</span>` : `<span class="pill ok">${d.status === "published" ? "Published" : "Approved"}</span>`;
-  const sections = Object.keys(AUD).map((a) => {
-    const items = d.items.filter((i) => i.audience === a);
+  const sections = (d.audiences || []).map((a) => {
+    const items = d.items.filter((i) => i.audience === a.id);
     if (!items.length) return "";
-    return `<h3>${AUD[a]}</h3>` + items.map((i) => `
+    return `<h3>${esc(a.label)} <span class="pill ${a.public ? "ok" : ""}">${a.public ? "public" : "internal"}</span></h3>` + items.map((i) => `
       <div class="item ${i.status === "needs_review" ? "review" : ""}">
         <h4>${esc(i.title)}</h4>
         <div class="area">${esc(i.area)} · ${esc(i.kind)}</div>

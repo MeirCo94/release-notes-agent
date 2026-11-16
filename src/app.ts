@@ -5,7 +5,7 @@ import type { Llm } from "./llm.js";
 import { buildDraft } from "./pipeline/compose.js";
 import { detectChanges, groupIntoBatches } from "./pipeline/detect.js";
 import type { JsonStore } from "./store.js";
-import type { Audience, ReleaseDraft } from "./types.js";
+import type { Audience, AudienceDef, ReleaseDraft } from "./types.js";
 
 export interface RunResult {
   messagesRead: number;
@@ -93,10 +93,13 @@ export interface WhatsNewEntry {
   items: { title: string; body: string; kind: string; area: string }[];
 }
 
-/** Approved, source-backed notes for one audience. Needs-review entries never reach users. */
+/** Approved, source-backed notes for one public audience. Needs-review entries and internal audiences never reach users. */
 export async function whatsNew(store: JsonStore, audience: Audience, limit = 10): Promise<WhatsNewEntry[]> {
   return (await store.drafts())
     .filter((d) => d.status === "approved" || d.status === "published")
+    // Only audiences marked public in the draft's own snapshot can ever be served. This is the guard that
+    // keeps internal team notes (support, sales, success) out of the product, whatever is requested.
+    .filter((d) => d.audiences.some((a) => a.id === audience && a.public))
     .map((d) => ({
       releaseId: d.id,
       date: d.batch.date,
@@ -110,13 +113,13 @@ export async function whatsNew(store: JsonStore, audience: Audience, limit = 10)
 }
 
 /**
- * Writes the in-product feed as static files (whats-new-instructor.json, whats-new-student.json) so the
+ * Writes the in-product feed as one static file per public audience (whats-new-<audience>.json) so the
  * widget can read them from a CDN or any static host with no server running. Same shape as /api/whats-new.
  */
-export async function writeFeeds(store: JsonStore, dir: string, limit = 10): Promise<string[]> {
+export async function writeFeeds(store: JsonStore, dir: string, audiences: AudienceDef[], limit = 10): Promise<string[]> {
   await mkdir(dir, { recursive: true });
   const written: string[] = [];
-  for (const audience of ["instructor", "student"] as const) {
+  for (const { id: audience } of audiences.filter((a) => a.public)) {
     const file = join(dir, `whats-new-${audience}.json`);
     const tmp = `${file}.tmp`;
     await writeFile(tmp, JSON.stringify({ audience, releases: await whatsNew(store, audience, limit) }, null, 2));

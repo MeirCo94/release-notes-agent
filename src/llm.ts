@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
-import type { Audience, ChatMessage, DetectedChange, Evidence, ProductContext } from "./types.js";
+import type { AudienceDef, ChatMessage, DetectedChange, Evidence, ProductContext } from "./types.js";
 
 // --- Schemas for structured output -------------------------------------------------
 
@@ -29,7 +29,7 @@ export const ComposeSchema = z.object({
   area: z.string(),
   entries: z.array(
     z.object({
-      audience: z.enum(["instructor", "student", "internal"]),
+      audience: z.string(),
       relevant: z.boolean(),
       title: z.string(),
       body: z.string(),
@@ -49,7 +49,7 @@ export interface Llm {
     message: ChatMessage;
     evidence: Evidence[];
     product: ProductContext;
-    audiences: Audience[];
+    audiences: AudienceDef[];
   }): Promise<Composition>;
 }
 
@@ -66,24 +66,20 @@ Rules:
 - version: the release identifier if the message states one, otherwise null.
 - Chit-chat, rollbacks-in-progress and questions are not announcements.`;
 
-const COMPOSE_SYSTEM = `You write release notes for {product}. You are given one product change, the Slack message
-that announced it, and the linked source material (evidence). Write one entry per requested audience.
+const COMPOSE_SYSTEM = `You write release notes for {product}. You are given one product change, the message that
+announced it, and the linked source material (evidence). Write one entry per requested audience.
 
-The core rule: every statement you write must be supported by the evidence. The Slack message tells you
+The core rule: every statement you write must be supported by the evidence. The announcement tells you
 WHAT shipped; only the evidence can tell you WHY, HOW it works, or WHO it is for.
 - Cite evidence ids in "citations" for every entry you mark supported.
 - If the evidence does not explain the change well enough to write a useful note for an audience, set
-  supported=false, keep the body to a plain restatement of the Slack summary, and say in reviewReason what is missing.
-- Never invent motivation, numbers, UI labels, or behaviour that is not in the evidence.
-- relevant=false when the change does not affect that audience (e.g. internal tooling for students).
-
-Audiences:
-- instructor: professors and TAs running courses and activities. Focus on what changes in their workflow.
-- student: learners submitting work and evaluating peers. Plain, short, no jargon.
-- internal: support and success teams. Can include ticket detail and edge cases.
+  supported=false, keep the body to a plain restatement of the announcement summary, and say in reviewReason what is missing.
+- Never invent motivation, numbers, UI labels, pricing, availability, customer names or behaviour that is not in the evidence.
+- relevant=false when the change does not matter to that audience.
+- Use each audience's id exactly as given for "audience".
 
 area: pick the closest product area name from the product context list. Use "Other" if none fit.
-Titles are short, user-facing and in sentence case.`;
+Titles are short, specific and in sentence case. Write each audience's entry for what that audience does with the information.`;
 
 // --- Claude implementation --------------------------------------------------------
 
@@ -135,7 +131,13 @@ export class ClaudeLlm implements Llm {
 <change kind="${change.kind}">${change.summary}</change>
 ${evidenceBlock || "<evidence>none</evidence>"}
 
-Write entries for these audiences: ${audiences.join(", ")}.`;
+<audiences>
+${audiences
+  .map((a) => `- id "${a.id}" (${a.label}, ${a.public ? "end users: plain language, no internal detail" : "internal team"}): ${a.description}`)
+  .join("\n")}
+</audiences>
+
+Write one entry for each audience listed above.`;
     return this.parse(system, user, ComposeSchema);
   }
 }

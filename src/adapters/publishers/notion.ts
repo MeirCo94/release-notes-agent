@@ -5,7 +5,7 @@ import type { Client as NotionClient } from "@notionhq/client";
 const { Client } = notionSdk;
 import type { Audience, NoteItem, ReleaseDraft } from "../../types.js";
 import type { DraftPublisher, ReviewedDraft } from "../types.js";
-import { AUDIENCE_HEADINGS, buildOutline, NEEDS_REVIEW } from "./render.js";
+import { audienceHeading, buildOutline, NEEDS_REVIEW } from "./render.js";
 
 // Notion pages are created in a "Release notes" database with a Status select:
 // Draft -> In review -> Approved -> Published. Reviewers edit the page in Notion; when Status is
@@ -145,7 +145,7 @@ export class NotionPublisher implements DraftPublisher {
     } while (cursor);
 
     const plain = (b: any) => (b[b.type]?.rich_text ?? []).map((r: any) => r.plain_text).join("");
-    const audienceByHeading = new Map(Object.entries(AUDIENCE_HEADINGS).map(([a, h]) => [h, a as Audience]));
+    const audienceByHeading = new Map(draft.audiences.map((a) => [audienceHeading(a), a.id]));
     const original = new Map(draft.items.map((i) => [`${i.audience}:${i.title}`, i]));
 
     const items: NoteItem[] = [];

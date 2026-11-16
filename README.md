@@ -2,12 +2,31 @@
 
 AI Product Communications platform. The core value is orchestrating the flow of product knowledge from company communication software into structured, audience-specific documentation.
 
-It reads your deploy-announcements channel, works out what shipped, pulls in the linked Jira tickets, PRs and docs, and writes a **draft** release note for each release for a product person to review and approve. Approved notes show up in your product through a small "What's new" widget.
+It works for any software company. It reads your deploy-announcements channel, works out what shipped, pulls in the linked Jira tickets, PRs and docs, and writes a **draft** for each release, with a version of the notes for each team that needs one: Customer Support, Sales, Customer Success, or whoever you define. A product person reviews and approves the draft. If you want, the customer-facing version also shows up in your product through a small "What's new" widget.
 
 ```
-Slack ─► detect deployments ─► retrieve linked context ─► structured notes ─► per-audience ─► Notion draft
- (or Discord)   (Claude)       (Jira, GitHub, docs)      (cited, checked)   instructor/student/internal   (or Google Docs)
+Slack ─► detect deployments ─► retrieve linked context ─► structured notes ─► one version per audience ─► Notion draft
+ (or Discord)   (Claude)       (Jira, GitHub, docs)      (cited, checked)    (support, sales, success, customers)  (or Google Docs)
 ```
+
+## Audiences
+
+Audiences are yours to define in `audiences.json`. Each one has an `id`, a `label`, a `description` (what they care about, which is how the model decides what to say), and `public`.
+
+```json
+[
+  { "id": "customer-support", "label": "Customer Support", "public": false,
+    "description": "Support agents who will get questions about this: what changed, what customers may report, edge cases, how to explain it." },
+  { "id": "sales", "label": "Sales", "public": false,
+    "description": "Reps talking to prospects: what is new in terms of value and who it matters to, as long as the sources state it." },
+  { "id": "customers", "label": "Customers", "public": true,
+    "description": "People who use the product. Plain language, no internal detail." }
+]
+```
+
+- **Internal** (`public: false`, the default): Support, Sales, Success, Solutions Engineering, Marketing, anyone. Their notes appear in the review draft with their own section and are **never** served by the feed or widget. This is enforced in code, not just in config.
+- **Public** (`public: true`): end users. Only their approved, sourced entries can appear in the in-product feed.
+- Add or remove teams freely. Each audience costs one extra entry per change in the model call. Changes users won't notice (infrastructure, refactors) are written only for internal audiences.
 
 ## The rule it will not break
 
@@ -28,7 +47,7 @@ npm start                   # review screen at http://localhost:3000
 npm test
 ```
 
-Edit `product.json` with your product's name, summary and areas. Areas are the buckets changes are grouped into; `PRODUCT_SITE_URLS` adds text from your website.
+Edit `product.json` with your product's name, summary and areas, and `audiences.json` with your teams. Areas are the buckets changes are grouped into; `PRODUCT_SITE_URLS` adds text from your website.
 
 ## Swapping Slack, Notion and Jira
 
@@ -47,7 +66,7 @@ Everything vendor-specific lives behind three small interfaces in `src/adapters/
 3. `NOTION_TOKEN=... npm run digest -- --setup-notion <parent page id>` creates a "Release notes" database and prints `NOTION_DATA_SOURCE_ID`.
 4. Set `DESTINATION=notion`.
 
-Each release becomes a page with Release date, Version, links to the Slack messages and Jira tickets, and sections **For instructors**, **For students** and **For support and success (internal)**. Reviewers edit the page and set **Status** to Approved. `npm run digest -- --sync` (or the **Sync** button, or `RUN_EVERY_MINUTES`) reads the edits back. Entries that still have a "Needs review" callout are left out; deleting the callout signs one off.
+Each release becomes a page with Release date, Version, links to the Slack messages and Jira tickets, and one section per audience (for example **Customer Support (internal)**, **Sales (internal)**, **Customer Success (internal)** and **For Customers**). Reviewers edit the page and set **Status** to Approved. `npm run digest -- --sync` (or the **Sync** button, or `RUN_EVERY_MINUTES`) reads the edits back. Entries that still have a "Needs review" callout are left out; deleting the callout signs one off.
 
 ## In-product release notes
 
@@ -55,14 +74,14 @@ One file, no dependencies, works in any page or framework. Use the pinned URL in
 
 ```html
 <script src="https://YOUR-HOST/widget.v1.js" defer></script>
-<release-notes-widget audience="student" api="https://YOUR-HOST"></release-notes-widget>
+<release-notes-widget audience="customers" api="https://YOUR-HOST"></release-notes-widget>
 ```
 
-Or let the script place a floating button for you: `<script src=".../widget.v1.js" data-audience="instructor" defer></script>` (add `data-target="#slot"` to mount it in your own markup instead).
+Or let the script place a floating button for you: `<script src=".../widget.v1.js" data-audience="customers" defer></script>` (add `data-target="#slot"` to mount it in your own markup instead).
 
 | Attribute | Meaning |
 | --- | --- |
-| `audience` | `instructor` or `student` |
+| `audience` | The `id` of a **public** audience from `audiences.json` (for example `customers`, or a separate `enterprise-admins` if you define one). Required unless `feed` is set |
 | `api` | Origin of this app (default: the script's origin) |
 | `feed` | Full URL of a static feed JSON. Skips the app entirely |
 | `heading`, `theme`, `floating` | Heading text, `auto`/`light`/`dark`, fixed bottom-right button |
@@ -71,9 +90,9 @@ Or let the script place a floating button for you: `<script src=".../widget.v1.j
 
 **Accessibility:** the toggle is a real button with `aria-expanded`/`aria-controls`; focus moves to the heading on open and returns to the button on Escape or Close; clicking elsewhere closes without stealing focus; unread state is in the button's accessible name, not only a dot; loading, empty and error states are announced; releases are lists with `time` elements; the close target is 44px; focus rings are visible; forced-colors mode is handled; dark mode follows the OS or `theme`. Checked with axe (WCAG 2.0/2.1 A and AA) in Chromium in light and dark, including contrast.
 
-**Running without the server (static feed):** set `FEED_DIR=public-feed`. Whenever a run, sync or approval happens the app rewrites `whats-new-instructor.json` and `whats-new-student.json` there. Upload the folder to any static host or CDN and point the widget at it with `feed="https://cdn.example.com/whats-new-student.json"`. The widget then works with the app switched off. Serve the JSON with `Access-Control-Allow-Origin` for your product's origin.
+**Running without the server (static feed):** set `FEED_DIR=public-feed`. Whenever a run, sync or approval happens the app rewrites one file per public audience there, such as `whats-new-customers.json`. Internal audiences never get a file. Upload the folder to any static host or CDN and point the widget at it with `feed="https://cdn.example.com/whats-new-customers.json"`. The widget then works with the app switched off. Serve the JSON with `Access-Control-Allow-Origin` for your product's origin.
 
-Or call `GET /api/whats-new?audience=student|instructor` and render it yourself. Only approved, sourced entries are ever returned. Set `WIDGET_ALLOWED_ORIGIN` to your product's origin in production.
+Or call `GET /api/whats-new?audience=<public audience id>` and render it yourself. Requesting an internal audience returns 400. Only approved, sourced entries are ever returned. Set `WIDGET_ALLOWED_ORIGIN` to your product's origin in production.
 
 ## Deploying
 

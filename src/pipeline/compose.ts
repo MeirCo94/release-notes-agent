@@ -1,7 +1,7 @@
 import type { ContextProvider } from "../adapters/types.js";
 import type { Llm } from "../llm.js";
 import type {
-  Audience,
+  AudienceDef,
   ChatMessage,
   DetectedChange,
   Evidence,
@@ -34,7 +34,7 @@ export async function retrieveEvidence(
 }
 
 /** The fallback entry when we can't back a note with sources: restate, don't explain. */
-function needsReview(change: DetectedChange, audience: Audience, area: string, reason: string): NoteItem {
+function needsReview(change: DetectedChange, audience: string, area: string, reason: string): NoteItem {
   return {
     changeId: change.id,
     audience,
@@ -62,11 +62,11 @@ export async function composeChange(args: {
   evidence: Evidence[];
   gaps: string[];
   product: ProductContext;
-  audiences: Audience[];
+  audiences: AudienceDef[];
 }): Promise<NoteItem[]> {
   const { llm, change, message, evidence, gaps, product } = args;
-  // Internal-only changes are only written for the internal audience.
-  const audiences = change.kind === "internal" ? args.audiences.filter((a) => a === "internal") : args.audiences;
+  // Changes users won't notice (infra, refactors) are only written for internal audiences.
+  const audiences = change.kind === "internal" ? args.audiences.filter((a) => !a.public) : args.audiences;
   if (audiences.length === 0) return [];
 
   if (evidence.length === 0) {
@@ -75,14 +75,14 @@ export async function composeChange(args: {
       refs === 0
         ? "No Jira ticket, pull request or doc is linked in the announcement."
         : `Linked sources could not be read${gaps.length ? ` (${gaps.join("; ")})` : ""}.`;
-    return audiences.map((a) => needsReview(change, a, "Other", reason));
+    return audiences.map((a) => needsReview(change, a.id, "Other", reason));
   }
 
   let composition;
   try {
     composition = await llm.compose({ change, message, evidence, product, audiences });
   } catch (err) {
-    return audiences.map((a) => needsReview(change, a, "Other", `Draft could not be generated: ${(err as Error).message}`));
+    return audiences.map((a) => needsReview(change, a.id, "Other", `Draft could not be generated: ${(err as Error).message}`));
   }
 
   const validIds = new Set(evidence.map((e) => e.id));
@@ -90,7 +90,7 @@ export async function composeChange(args: {
   const area = knownAreas.has(composition.area) ? composition.area : "Other";
 
   const items: NoteItem[] = [];
-  for (const audience of audiences) {
+  for (const { id: audience } of audiences) {
     const entry = composition.entries.find((e) => e.audience === audience);
     if (!entry) {
       items.push(needsReview(change, audience, area, "No entry was generated for this audience."));
@@ -129,7 +129,7 @@ export async function buildDraft(args: {
   batch: ReleaseBatch;
   providers: ContextProvider[];
   product: ProductContext;
-  audiences: Audience[];
+  audiences: AudienceDef[];
 }): Promise<ReleaseDraft> {
   const { batch } = args;
   const messages = new Map(batch.messages.map((m) => [m.id, m]));
@@ -157,6 +157,7 @@ export async function buildDraft(args: {
     batch,
     title: fmtTitle(batch),
     items,
+    audiences: args.audiences,
     evidence: [...allEvidence.values()],
     status: "draft",
     createdAt: new Date().toISOString(),

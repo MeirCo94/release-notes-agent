@@ -20,11 +20,11 @@ if (values["setup-notion"]) {
   const db = await NotionPublisher.createDatabase(token, positionals[0]);
   console.log(`Created ${db.url}\nSet NOTION_DATA_SOURCE_ID=${db.dataSourceId}`);
 } else {
-  const cfg = loadConfig();
+  const cfg = await loadConfig();
   const store = new JsonStore(cfg.storePath);
   if (values.sync) {
     console.log(`Updated ${await syncReviews(cfg, store)} drafts from ${cfg.publisher.name}`);
-    if (cfg.feedDir) console.log("Wrote", await writeFeeds(store, cfg.feedDir));
+    if (cfg.feedDir) console.log("Wrote", await writeFeeds(store, cfg.feedDir, cfg.audiences));
   } else {
     const r = await runDigest(cfg, new ClaudeLlm(), store, {
       since: values.since ? new Date(values.since) : undefined,

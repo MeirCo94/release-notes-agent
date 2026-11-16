@@ -1,13 +1,10 @@
-import type { Audience, Evidence, NoteItem, ReleaseDraft } from "../../types.js";
+import type { Audience, AudienceDef, Evidence, NoteItem, ReleaseDraft } from "../../types.js";
 
 // A destination-neutral outline of a draft. Each publisher turns this into its own format,
 // so every destination gets the same sections and metadata.
 
-export const AUDIENCE_HEADINGS: Record<Audience, string> = {
-  instructor: "For instructors",
-  student: "For students",
-  internal: "For support and success (internal)",
-};
+/** Section heading for an audience. Internal teams are labelled so reviewers never mistake them for public copy. */
+export const audienceHeading = (a: AudienceDef) => (a.public ? `For ${a.label}` : `${a.label} (internal)`);
 export const KIND_LABEL = { feature: "New", improvement: "Improved", fix: "Fixed", internal: "Internal" } as const;
 export const NEEDS_REVIEW = "Needs review";
 
@@ -49,12 +46,12 @@ export function buildOutline(draft: ReleaseDraft): Outline {
     { label: "Pull requests", value: prs.length ? String(prs.length) : "None linked", links: prs.map((u) => ({ label: u.replace("https://github.com/", ""), url: u })) },
   ];
 
-  const sections = (Object.keys(AUDIENCE_HEADINGS) as Audience[])
-    .map((audience) => ({
-      audience,
-      heading: AUDIENCE_HEADINGS[audience],
+  const sections = draft.audiences
+    .map((def) => ({
+      audience: def.id,
+      heading: audienceHeading(def),
       items: draft.items
-        .filter((i) => i.audience === audience)
+        .filter((i) => i.audience === def.id)
         .sort((x, y) => x.area.localeCompare(y.area) || x.kind.localeCompare(y.kind))
         .map((item) => ({
           item,

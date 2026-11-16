@@ -53,8 +53,21 @@ export interface Evidence {
   text: string;
 }
 
-export type Audience = "instructor" | "student" | "internal";
-export const AUDIENCES: Audience[] = ["instructor", "student", "internal"];
+/** Id of an audience defined in the audiences config (e.g. "customer-support", "sales"). */
+export type Audience = string;
+
+/**
+ * Someone who needs their own version of the notes. Defined in config, so any company can use its
+ * own teams. `public` audiences are end users: their approved notes can be shown in your product.
+ * Non-public audiences are internal teams and never leave the review destination.
+ */
+export interface AudienceDef {
+  id: Audience;
+  label: string;
+  /** What this audience cares about and how to write for them. Used as guidance for the model. */
+  description: string;
+  public: boolean;
+}
 
 export type ItemStatus = "supported" | "needs_review";
 
@@ -80,6 +93,8 @@ export interface ReleaseDraft {
   batch: ReleaseBatch;
   title: string;
   items: NoteItem[];
+  /** The audiences this draft was written for (a snapshot, so later config changes don't alter old drafts). */
+  audiences: AudienceDef[];
   evidence: Evidence[];
   status: DraftStatus;
   createdAt: string;

@@ -5,9 +5,9 @@ import { approveDraft, runDigest, syncReviews, whatsNew, writeFeeds } from "./ap
 import { loadConfig } from "./config.js";
 import { ClaudeLlm } from "./llm.js";
 import { JsonStore } from "./store.js";
-import { AUDIENCES, type Audience } from "./types.js";
+import { publicAudiences } from "./audiences.js";
 
-const cfg = loadConfig();
+const cfg = await loadConfig();
 const store = new JsonStore(cfg.storePath);
 const llm = new ClaudeLlm();
 const app = express();
@@ -30,7 +30,7 @@ app.post("/api/run", requireAdmin, async (req, res) => {
     const since = req.body?.since ? new Date(req.body.since) : undefined;
     const until = req.body?.until ? new Date(req.body.until) : undefined;
     const result = await runDigest(cfg, llm, store, { since, until });
-    if (cfg.feedDir) await writeFeeds(store, cfg.feedDir);
+    if (cfg.feedDir) await writeFeeds(store, cfg.feedDir, cfg.audiences);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
@@ -42,7 +42,7 @@ app.post("/api/run", requireAdmin, async (req, res) => {
 app.post("/api/sync", requireAdmin, async (_req, res) => {
   try {
     const updated = await syncReviews(cfg, store);
-    if (cfg.feedDir) await writeFeeds(store, cfg.feedDir);
+    if (cfg.feedDir) await writeFeeds(store, cfg.feedDir, cfg.audiences);
     res.json({ updated });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
@@ -62,14 +62,15 @@ app.get("/api/drafts", requireAdmin, async (_req, res) => {
 app.post("/api/drafts/:id/approve", requireAdmin, async (req, res) => {
   const d = await approveDraft(store, String(req.params.id));
   if (!d) return void res.status(404).json({ error: "Draft not found" });
-  if (cfg.feedDir) await writeFeeds(store, cfg.feedDir);
+  if (cfg.feedDir) await writeFeeds(store, cfg.feedDir, cfg.audiences);
   res.json(d);
 });
 
 // Public, read-only feed for the in-product "What's new" widget.
 app.get("/api/whats-new", async (req, res) => {
-  const audience = String(req.query.audience ?? "student") as Audience;
-  if (!AUDIENCES.includes(audience) || audience === "internal") return void res.status(400).json({ error: "audience must be instructor or student" });
+  const audience = String(req.query.audience ?? "");
+  const allowed = publicAudiences(cfg.audiences).map((a) => a.id);
+  if (!allowed.includes(audience)) return void res.status(400).json({ error: `audience must be one of: ${allowed.join(", ") || "(none are public)"}` });
   res.set("Access-Control-Allow-Origin", process.env.WIDGET_ALLOWED_ORIGIN ?? "*");
   res.set("Cache-Control", "public, max-age=300");
   res.json({ audience, releases: await whatsNew(store, audience, Number(req.query.limit ?? 10)) });
@@ -95,7 +96,7 @@ if (every > 0) {
     try {
       const r = await runDigest(cfg, llm, store);
       await syncReviews(cfg, store);
-      if (cfg.feedDir) await writeFeeds(store, cfg.feedDir);
+      if (cfg.feedDir) await writeFeeds(store, cfg.feedDir, cfg.audiences);
       console.log(`Scheduled run: ${r.announcements} announcements, ${r.drafts.length} drafts`, r.errors);
     } catch (err) {
       console.error("Scheduled run failed", err);

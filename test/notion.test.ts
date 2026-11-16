@@ -1,16 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { NotionPublisher } from "../src/adapters/publishers/notion.js";
 import type { ReleaseDraft } from "../src/types.js";
+import { audiences } from "./helpers.js";
 
 const draft: ReleaseDraft = {
   id: "draft_1", title: "Release 3.42.0 (2026-11-10)", status: "draft", createdAt: "2026-11-10T00:00:00Z",
   batch: { id: "rel_1", date: "2026-11-10", version: "3.42.0", messages: [{ id: "m1", channel: "c", author: "a", postedAt: "2026-11-10T15:00:00Z", text: "x", permalink: "https://slack.example/m1" }],
-    changes: [{ id: "c1", messageId: "m1", summary: "s", kind: "feature", jiraKeys: ["KRT-1"], prUrls: [], docUrls: [] }] },
-  evidence: [{ id: "jira:KRT-1", type: "jira", title: "KRT-1: Import rubric", url: "https://jira.example/browse/KRT-1", text: "t" }],
+    changes: [{ id: "c1", messageId: "m1", summary: "s", kind: "feature", jiraKeys: ["PRJ-1"], prUrls: [], docUrls: [] }] },
+  audiences: audiences.filter((a) => a.id === "customers" || a.id === "sales"),
+  evidence: [{ id: "jira:PRJ-1", type: "jira", title: "PRJ-1: Import rubric", url: "https://jira.example/browse/PRJ-1", text: "t" }],
   items: [
-    { changeId: "c1", audience: "student", kind: "feature", area: "Activity creation", title: "Rubric import", body: "Original body", citations: ["jira:KRT-1"], status: "supported" },
-    { changeId: "c2", audience: "student", kind: "fix", area: "Other", title: "Timer fix", body: "restated", citations: [], status: "needs_review", reviewReason: "No source" },
-    { changeId: "c3", audience: "student", kind: "fix", area: "Other", title: "Signed off fix", body: "restated", citations: [], status: "needs_review", reviewReason: "No source" },
+    { changeId: "c1", audience: "customers", kind: "feature", area: "Activity creation", title: "Rubric import", body: "Original body", citations: ["jira:PRJ-1"], status: "supported" },
+    { changeId: "c2", audience: "customers", kind: "fix", area: "Other", title: "Timer fix", body: "restated", citations: [], status: "needs_review", reviewReason: "No source" },
+    { changeId: "c3", audience: "customers", kind: "fix", area: "Other", title: "Signed off fix", body: "restated", citations: [], status: "needs_review", reviewReason: "No source" },
   ],
 };
 
@@ -35,9 +37,9 @@ describe("NotionPublisher", () => {
     expect(p.properties.Status.select.name).toBe("Draft");
     expect(p.properties["Release date"].date.start).toBe("2026-11-10");
     expect(p.properties["Needs review"].number).toBe(2);
-    expect(p.properties["Jira tickets"].rich_text[0].text.content).toBe("KRT-1");
+    expect(p.properties["Jira tickets"].rich_text[0].text.content).toBe("PRJ-1");
     const headings = p.children.filter((b: any) => b.type === "heading_2").map((b: any) => b.heading_2.rich_text[0].text.content);
-    expect(headings).toContain("For students");
+    expect(headings).toContain("For Customers");
     expect(JSON.stringify(p.children)).toContain("https://slack.example/m1");
   });
 
@@ -60,7 +62,7 @@ describe("NotionPublisher", () => {
     const titles = review!.items!.map((i) => i.title);
     expect(titles).toEqual(["Rubric import", "Signed off fix"]); // "Timer fix" still flagged -> excluded
     expect(review!.items![0].body).toBe("Edited by a human");
-    expect(review!.items![0].citations).toEqual(["jira:KRT-1"]);
+    expect(review!.items![0].citations).toEqual(["jira:PRJ-1"]);
     expect(review!.items!.every((i) => i.status === "supported")).toBe(true);
   });
 });

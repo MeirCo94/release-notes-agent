@@ -18,6 +18,8 @@ export class JsonStore {
     if (this.data) return this.data;
     try {
       this.data = JSON.parse(await readFile(this.path, "utf8"));
+      // Drafts saved before audiences were configurable have no snapshot: treat them as having none.
+      for (const d of this.data!.drafts) d.audiences ??= [];
     } catch {
       this.data = { drafts: [], processedMessageIds: [] };
     }
